@@ -1,0 +1,34 @@
+sequenceDiagram
+    autonumber
+    actor Designer as Content Designer Studio
+    participant API as Django API Service
+    participant S3 as S3-Compatible Object Storage
+    participant Celery as Celery Async Queue (Redis)
+    participant Worker as Celery Background Worker
+    participant DB as Neon PostgreSQL (MediaAsset)
+
+    Designer->>API: POST /api/v1/lessons/{id}/media-upload-url/ {filename, size, mime_type}
+    API->>API: Validate Designer Permissions & Allowed MIME Types
+    API->>S3: Generate Presigned PUT URL (15-min expiry, exact Content-Type)
+    S3-->>API: Presigned URL + Storage Key
+    API-->>Designer: HTTP 200 OK {upload_url, storage_key}
+
+    Designer->>S3: PUT binary file directly to S3 Bucket with Progress Telemetry
+    S3-->>Designer: HTTP 200 OK (Upload Complete)
+
+    Designer->>API: POST /api/v1/media-assets/confirm/ {storage_key, original_name}
+    API->>DB: Create MediaAsset (status=PROCESSING, size, storage_key)
+    DB-->>API: MediaAsset Record Created
+    API->>Celery: Enqueue task: process_media_asset(media_asset_id)
+    API-->>Designer: HTTP 202 Accepted {media_asset_id, status: "PROCESSING"}
+
+    Worker->>Celery: Dequeue process_media_asset task
+    Worker->>S3: Inspect Magic Bytes & Verify Antivirus Hash
+    alt Magic Bytes Mismatch or Malicious Payload
+        Worker->>S3: Delete Object from Bucket
+        Worker->>DB: Update MediaAsset (status=REJECTED)
+    else File Valid
+        Worker->>Worker: Extract Duration & Generate Video Thumbnail / Audio Waveform
+        Worker->>S3: Store Thumbnail Image & Derived Assets
+        Worker->>DB: Update MediaAsset (status=READY, duration_seconds, thumbnail_key)
+    end

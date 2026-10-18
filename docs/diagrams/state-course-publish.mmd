@@ -1,0 +1,28 @@
+stateDiagram-v2
+    [*] --> Draft : Course Created by Instructor
+
+    state Draft {
+        [*] --> EditingContent
+        EditingContent --> AddingModulesLessons : Add Structure
+        AddingModulesLessons --> UploadingMedia : Direct Presigned Upload
+        UploadingMedia --> PreviewingDraft : Review in Studio
+        PreviewingDraft --> EditingContent : Revise Content
+    }
+
+    Draft --> InReview : Instructor Submits for Verification\n(Validates >=1 module, >=1 lesson)
+    
+    InReview --> Draft : Rejection / Changes Requested\n(Feedback provided)
+    
+    InReview --> Published : Admin / Lead Approval\n(Invalidates Catalog Cache)
+
+    state Published {
+        [*] --> LiveToLearners
+        LiveToLearners --> CreatingMinorRevision : Non-breaking edit\n(Auto-versions snapshot)
+        CreatingMinorRevision --> LiveToLearners : Save revision
+    }
+
+    Published --> Archived : Deprecated / End of Life\n(Read-only for past students)
+    
+    Draft --> Archived : Cancelled Draft
+    
+    Archived --> [*]

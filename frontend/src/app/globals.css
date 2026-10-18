@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-primary: #ffffff;
+    --text-primary: #0f172a;
+    --accent-primary: #4f46e5;
+  }
+
+  /* Accessibility: Scalable Typography */
+  html[data-font-size="large"] {
+    font-size: 112.5%;
+  }
+
+  html[data-font-size="xlarge"] {
+    font-size: 125%;
+  }
+
+  /* Accessibility: High Contrast Mode (WCAG 2.1 AA compliant > 7:1) */
+  html[data-contrast="high"] {
+    --bg-primary: #000000;
+    --text-primary: #ffffff;
+    --accent-primary: #ffff00;
+  }
+
+  html[data-contrast="high"] body {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+  }
+
+  html[data-contrast="high"] a {
+    color: #38bdf8 !important;
+    text-decoration: underline !important;
+  }
+
+  html[data-contrast="high"] button,
+  html[data-contrast="high"] .btn {
+    border: 2px solid #ffffff !important;
+  }
+
+  html[data-contrast="high"] .card,
+  html[data-contrast="high"] .bg-white,
+  html[data-contrast="high"] .bg-slate-50,
+  html[data-contrast="high"] .bg-slate-100 {
+    background-color: #0a0a0a !important;
+    border-color: #ffffff !important;
+    color: #ffffff !important;
+  }
+
+  /* Accessibility: Reduced Motion */
+  html[data-reduce-motion="true"] *,
+  html[data-reduce-motion="true"] *::before,
+  html[data-reduce-motion="true"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Focus ring for keyboard accessibility */
+  *:focus-visible {
+    outline: 3px solid #6366f1 !important;
+    outline-offset: 2px !important;
+  }
+}
+
+/* Glassmorphism & Modern Design Tokens */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.glass-panel-dark {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(51, 65, 85, 0.8);
+}
+
+/* Video Player Subtitle Styling */
+::cue {
+  background: rgba(0, 0, 0, 0.85);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 1.1rem;
+  line-height: 1.4;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}

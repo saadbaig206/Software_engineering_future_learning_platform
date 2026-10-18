@@ -1,0 +1,32 @@
+stateDiagram-v2
+    [*] --> Initialized : Learner Opens Quiz Checkpoint
+
+    Initialized --> InProgress : Start Attempt\n(Attempt count < max_attempts;\nLock timer)
+
+    state InProgress {
+        [*] --> AnsweringQuestions
+        AnsweringQuestions --> UpdatingSelections : Learner selects choices
+        UpdatingSelections --> AnsweringQuestions : Next Question
+    }
+
+    InProgress --> Submitted : Explicit User Submission\n(Before deadline)
+    
+    InProgress --> AutoSubmitted : Time Limit Expiry\n(Backend timer threshold)
+
+    Submitted --> Graded : Server Calculates Points\n(Atomically validates answers)
+    
+    AutoSubmitted --> Graded : Server Grades Partial Responses
+
+    state Graded {
+        [*] --> ScoreCalculated
+        ScoreCalculated --> Passed : score >= passing_score_percent\n(Triggers Mastery Update)
+        ScoreCalculated --> Failed : score < passing_score_percent\n(Triggers Remedial Branch)
+    }
+
+    Passed --> Completed : High Score Recorded
+    
+    Failed --> Completed : Max Attempts Reached
+    
+    Failed --> InProgress : Retake Attempt\n(Attempt count < max_attempts)
+
+    Completed --> [*]

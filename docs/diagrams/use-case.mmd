@@ -1,0 +1,66 @@
+flowchart LR
+    subgraph Actors [System Actors]
+        direction TB
+        G["Guest"]
+        L["Learner"]
+        I["Instructor / Designer"]
+        M["Moderator"]
+        A["Administrator"]
+    end
+
+    subgraph AuthApp [Authentication & Governance]
+        UC_Reg(["Register & Verify Email\n(FR-AUTH-01)"])
+        UC_Login(["Login & Refresh Tokens\n(FR-AUTH-03)"])
+        UC_UserMgmt(["Manage Users & Roles\n(FR-ADM-01)"])
+        UC_GDPR(["GDPR Consent & Data Export\n(FR-AUTH-05, NFR-PRIV-01)"])
+    end
+
+    subgraph CourseApp [Course & Content Management]
+        UC_Browse(["Browse Catalog & Syllabi\n(FR-CRS-01, FR-CRS-02)"])
+        UC_Enroll(["Enroll in Course\n(FR-CRS-03)"])
+        UC_Author(["Author Modules & Lessons\n(FR-CRS-04, FR-CRS-05)"])
+        UC_Publish(["Course Publish Lifecycle\n(FR-CRS-06, FR-CRS-07)"])
+        UC_MediaUpload(["Direct Media Upload\n(FR-MED-01, FR-MED-02)"])
+    end
+
+    subgraph LearnApp [Learning, Progress & Adaptive]
+        UC_Learn(["Study Multi-Format Lessons\n(FR-CRS-05, FR-MED-03)"])
+        UC_Progress(["Track Resume & Completion\n(FR-TRK-01, FR-TRK-02)"])
+        UC_Adaptive(["Receive Adaptive Path\n(FR-PER-03, FR-PER-04)"])
+        UC_Quiz(["Take Quizzes & View Feedback\n(FR-ASM-01 - FR-ASM-04)"])
+        UC_Sim(["Engage in Simulations\n(FR-SIM-01 - FR-SIM-03)"])
+    end
+
+    subgraph SocialApp [Community & Analytics]
+        UC_Forum(["Post & Reply in Forums\n(FR-DIS-01, FR-DIS-02)"])
+        UC_Moderate(["Moderate Flagged Posts\n(FR-DIS-04, FR-DIS-05)"])
+        UC_Analytics(["Review Course Analytics\n(FR-ANL-01 - FR-ANL-03)"])
+    end
+
+    %% Actor Connections
+    G --> UC_Browse
+    G --> UC_Reg
+    G --> UC_Login
+
+    L --> UC_Enroll
+    L --> UC_Learn
+    L --> UC_Progress
+    L --> UC_Quiz
+    L --> UC_Sim
+    L --> UC_Adaptive
+    L --> UC_Forum
+    L --> UC_GDPR
+
+    I --> UC_Author
+    I --> UC_Publish
+    I --> UC_MediaUpload
+    I --> UC_Analytics
+    I --> UC_Forum
+
+    M --> UC_Moderate
+    M --> UC_Forum
+
+    A --> UC_UserMgmt
+    A --> UC_Publish
+    A --> UC_Moderate
+    A --> UC_GDPR

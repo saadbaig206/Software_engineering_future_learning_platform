@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Simulation: Circuit Breaker & Load Balancer</title>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --border: #334155;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text-main); padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+
+    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; }
+    .header h2 { font-size: 1.15rem; font-weight: 700; color: var(--accent); }
+    .score-badge { background: #0369a1; padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.85rem; }
+
+    .instructions { background: #1e293b80; border-left: 3px solid var(--accent); padding: 0.75rem; font-size: 0.825rem; color: var(--text-muted); border-radius: 0 6px 6px 0; }
+
+    .cluster-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-top: 0.5rem; }
+    .node-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.875rem; display: flex; flex-direction: column; gap: 0.5rem; transition: all 0.2s ease; }
+    .node-card.healthy { border-color: var(--success); box-shadow: 0 0 10px rgba(16, 185, 129, 0.15); }
+    .node-card.tripped { border-color: var(--danger); box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); }
+    .node-card.recovering { border-color: var(--warning); box-shadow: 0 0 10px rgba(245, 158, 11, 0.15); }
+
+    .node-title { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 0.9rem; }
+    .status-pill { font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 9999px; text-transform: uppercase; }
+    .status-healthy { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+    .status-tripped { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+    .status-recovering { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+
+    .meter-label { font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; }
+    .meter-bar { height: 6px; background: #334155; border-radius: 3px; overflow: hidden; margin-top: 0.25rem; }
+    .meter-fill { height: 100%; transition: width 0.3s ease; }
+
+    .breaker-banner { display: flex; align-items: center; justify-content: space-between; background: #0f172a; border: 1px dashed var(--border); border-radius: 6px; padding: 0.75rem 1rem; }
+    .breaker-state { font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem; }
+
+    .controls-panel { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+    button { padding: 0.5rem 0.85rem; border-radius: 6px; border: none; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.15s ease; }
+    .btn-primary { background: var(--accent); color: #0f172a; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-danger { background: #b91c1c; color: white; }
+    .btn-danger:hover { background: var(--danger); }
+    .btn-success { background: #047857; color: white; }
+    .btn-success:hover { background: var(--success); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+    .btn-outline:hover { background: #334155; }
+
+    .event-log { background: #020617; border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; height: 110px; overflow-y: auto; font-family: ui-monospace, monospace; font-size: 0.75rem; color: #cbd5e1; }
+    .log-line { margin-bottom: 0.25rem; }
+    .log-line.success { color: var(--success); }
+    .log-line.warn { color: var(--warning); }
+    .log-line.danger { color: var(--danger); }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h2>⚡ Circuit Breaker & Resilient Load Balancer</h2>
+    <div class="score-badge" id="scoreDisplay">Score: 0% / 75% Required</div>
+  </div>
+
+  <div class="instructions">
+    <strong>Mission:</strong> Send request traffic across cluster nodes. When traffic creates latency spikes, trip faulty nodes and allow the Circuit Breaker to enter <strong>HALF-OPEN</strong> and recover. Score ≥75% unlocks completion.
+  </div>
+
+  <!-- Cluster Node Cards -->
+  <div class="cluster-grid">
+    <div class="node-card healthy" id="node-0">
+      <div class="node-title">
+        <span>Node-Alpha</span>
+        <span class="status-pill status-healthy" id="pill-0">CLOSED</span>
+      </div>
+      <div>
+        <div class="meter-label"><span>Load: <strong id="load-0">20%</strong></span><span id="req-0">0 reqs</span></div>
+        <div class="meter-bar"><div class="meter-fill" id="bar-0" style="width: 20%; background: var(--success);"></div></div>
+      </div>
+      <button class="btn-outline" onclick="toggleFault(0)" id="btn-fault-0">Simulate Spike</button>
+    </div>
+
+    <div class="node-card healthy" id="node-1">
+      <div class="node-title">
+        <span>Node-Beta</span>
+        <span class="status-pill status-healthy" id="pill-1">CLOSED</span>
+      </div>
+      <div>
+        <div class="meter-label"><span>Load: <strong id="load-1">15%</strong></span><span id="req-1">0 reqs</span></div>
+        <div class="meter-bar"><div class="meter-fill" id="bar-1" style="width: 15%; background: var(--success);"></div></div>
+      </div>
+      <button class="btn-outline" onclick="toggleFault(1)" id="btn-fault-1">Simulate Spike</button>
+    </div>
+
+    <div class="node-card healthy" id="node-2">
+      <div class="node-title">
+        <span>Node-Gamma</span>
+        <span class="status-pill status-healthy" id="pill-2">CLOSED</span>
+      </div>
+      <div>
+        <div class="meter-label"><span>Load: <strong id="load-2">25%</strong></span><span id="req-2">0 reqs</span></div>
+        <div class="meter-bar"><div class="meter-fill" id="bar-2" style="width: 25%; background: var(--success);"></div></div>
+      </div>
+      <button class="btn-outline" onclick="toggleFault(2)" id="btn-fault-2">Simulate Spike</button>
+    </div>
+  </div>
+
+  <!-- Circuit Breaker Status Banner -->
+  <div class="breaker-banner">
+    <div>
+      <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Circuit State</div>
+      <div class="breaker-state" id="circuitStateText"><span style="color: var(--success);">●</span> CLOSED (Normal Traffic Flow)</div>
+    </div>
+    <div>
+      <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Handled Traffic</div>
+      <div style="font-size: 0.95rem; font-weight: 700; color: var(--accent);" id="totalTrafficText">0 requests</div>
+    </div>
+    <div>
+      <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Recovery Health</div>
+      <div style="font-size: 0.95rem; font-weight: 700; color: var(--success);" id="recoveryHealthText">100%</div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls-panel">
+    <button class="btn-primary" onclick="sendBatchTraffic(10)">🚀 Send 10 Requests</button>
+    <button class="btn-primary" onclick="sendBatchTraffic(25)">🔥 Burst 25 Requests</button>
+    <button class="btn-success" onclick="recoverAllNodes()">🩹 Heal Cluster</button>
+    <button class="btn-outline" onclick="resetSim()">↺ Reset</button>
+  </div>
+
+  <!-- Event Log -->
+  <div class="event-log" id="logBox">
+    <div class="log-line">[SYSTEM] Simulation initialized. Circuit breaker state: CLOSED. Ready for telemetry stream.</div>
+  </div>
+
+  <script>
+    const nodes = [
+      { name: "Node-Alpha", load: 20, reqs: 0, status: "healthy" },
+      { name: "Node-Beta", load: 15, reqs: 0, status: "healthy" },
+      { name: "Node-Gamma", load: 25, reqs: 0, status: "healthy" }
+    ];
+
+    let totalTraffic = 0;
+    let successfulRequests = 0;
+    let circuitState = "CLOSED"; // CLOSED, OPEN, HALF_OPEN
+    let score = 0;
+    let completed = false;
+
+    function log(msg, type = "") {
+      const box = document.getElementById("logBox");
+      const el = document.createElement("div");
+      el.className = `log-line ${type}`;
+      el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      box.prepend(el);
+    }
+
+    function updateUI() {
+      nodes.forEach((n, idx) => {
+        const card = document.getElementById(`node-${idx}`);
+        const pill = document.getElementById(`pill-${idx}`);
+        const loadTxt = document.getElementById(`load-${idx}`);
+        const reqTxt = document.getElementById(`req-${idx}`);
+        const bar = document.getElementById(`bar-${idx}`);
+
+        card.className = `node-card ${n.status}`;
+        pill.className = `status-pill status-${n.status}`;
+        pill.textContent = n.status.toUpperCase();
+        loadTxt.textContent = `${Math.round(n.load)}%`;
+        reqTxt.textContent = `${n.reqs} reqs`;
+        bar.style.width = `${Math.min(100, Math.round(n.load))}%`;
+        bar.style.background = n.status === "tripped" ? "var(--danger)" : (n.load > 70 ? "var(--warning)" : "var(--success)");
+      });
+
+      const stateText = document.getElementById("circuitStateText");
+      if (circuitState === "CLOSED") {
+        stateText.innerHTML = '<span style="color: var(--success);">●</span> CLOSED (Normal Traffic Flow)';
+      } else if (circuitState === "OPEN") {
+        stateText.innerHTML = '<span style="color: var(--danger);">●</span> OPEN (Fast Failover Active)';
+      } else {
+        stateText.innerHTML = '<span style="color: var(--warning);">●</span> HALF-OPEN (Canary Probe Testing)';
+      }
+
+      document.getElementById("totalTrafficText").textContent = `${totalTraffic} requests`;
+      
+      const passRate = totalTraffic > 0 ? (successfulRequests / totalTraffic) : 1;
+      document.getElementById("recoveryHealthText").textContent = `${Math.round(passRate * 100)}%`;
+
+      document.getElementById("scoreDisplay").textContent = `Score: ${score}% / 75% Required`;
+      if (score >= 75) {
+        document.getElementById("scoreDisplay").style.background = "var(--success)";
+      }
+    }
+
+    function sendBatchTraffic(count) {
+      log(`Emitting burst of ${count} requests to load balancer...`);
+      totalTraffic += count;
+
+      for (let i = 0; i < count; i++) {
+        // Pick healthy node with lowest load
+        const available = nodes.filter(n => n.status !== "tripped");
+        if (available.length === 0) {
+          circuitState = "OPEN";
+          log("All nodes failed! Circuit Breaker tripped to OPEN (fast failover protection active).", "danger");
+          break;
+        }
+
+        available.sort((a, b) => a.load - b.load);
+        const target = available[0];
+        target.reqs++;
+        target.load += 2.5;
+        successfulRequests++;
+
+        if (target.load > 90) {
+          target.status = "tripped";
+          log(`Warning: ${target.name} exceeded 90% load threshold and tripped!`, "warn");
+          checkCircuitStatus();
+        }
+      }
+
+      evaluateScore();
+      updateUI();
+    }
+
+    function toggleFault(idx) {
+      const node = nodes[idx];
+      if (node.status === "tripped") {
+        node.status = "recovering";
+        node.load = 40;
+        log(`Canary recovery initiated on ${node.name}.`, "warn");
+      } else {
+        node.status = "tripped";
+        node.load = 100;
+        log(`Fault injected: ${node.name} simulated network partition failure!`, "danger");
+      }
+      checkCircuitStatus();
+      evaluateScore();
+      updateUI();
+    }
+
+    function checkCircuitStatus() {
+      const trippedCount = nodes.filter(n => n.status === "tripped").length;
+      if (trippedCount >= 2) {
+        circuitState = "OPEN";
+      } else if (trippedCount === 1) {
+        circuitState = "HALF_OPEN";
+      } else {
+        circuitState = "CLOSED";
+      }
+    }
+
+    function recoverAllNodes() {
+      nodes.forEach(n => {
+        n.status = "healthy";
+        n.load = Math.floor(Math.random() * 20) + 15;
+      });
+      circuitState = "CLOSED";
+      log("Cluster healed! All nodes returned to healthy operating baseline.", "success");
+      evaluateScore();
+      updateUI();
+    }
+
+    function evaluateScore() {
+      let earned = 0;
+      if (totalTraffic >= 25) earned += 30;
+      if (nodes.some(n => n.status === "tripped" || n.load > 80)) earned += 25;
+      if (circuitState === "CLOSED" && totalTraffic >= 20) earned += 30;
+      if (successfulRequests >= 20) earned += 15;
+
+      score = Math.min(100, earned);
+
+      if (score >= 75 && !completed) {
+        completed = true;
+        log(`🎉 Simulation challenge passed with score ${score}%! Reporting telemetry to parent LMS...`, "success");
+        emitScoreToParent(score, true);
+      }
+    }
+
+    function emitScoreToParent(scorePct, isCompleted) {
+      const payload = {
+        type: "SIM_SCORE_REPORT",
+        payload: {
+          score_percent: scorePct,
+          completed: isCompleted,
+          telemetry: {
+            total_requests: totalTraffic,
+            successful_requests: successfulRequests,
+            nodes_status: nodes.map(n => ({ name: n.name, load: n.load, status: n.status })),
+            circuit_state: circuitState,
+          }
+        }
+      };
+
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(payload, "*");
+      }
+    }
+
+    function resetSim() {
+      nodes.forEach((n, i) => {
+        n.load = [20, 15, 25][i];
+        n.reqs = 0;
+        n.status = "healthy";
+      });
+      totalTraffic = 0;
+      successfulRequests = 0;
+      circuitState = "CLOSED";
+      score = 0;
+      completed = false;
+      log("Simulation reset to initial state.");
+      updateUI();
+    }
+
+    // Bi-directional window.postMessage protocol listener (FR-SIM-02)
+    window.addEventListener("message", (event) => {
+      if (!event.data || !event.data.type) return;
+
+      if (event.data.type === "SIM_INIT") {
+        log(`Received SIM_INIT handshake from parent player frame.`, "success");
+        emitScoreToParent(0, false);
+      } else if (event.data.type === "SIM_RESET") {
+        resetSim();
+      }
+    });
+
+    // Notify parent frame that simulation widget is ready
+    window.onload = () => {
+      updateUI();
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: "SIM_READY", payload: { version: "1.0", simulation_id: "sim-dist-circuit-breaker" } }, "*");
+      }
+    };
+  </script>
+</body>
+</html>

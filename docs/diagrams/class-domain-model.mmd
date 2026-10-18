@@ -1,0 +1,230 @@
+classDiagram
+    direction TB
+
+    class User {
+        +UUID id
+        +String email
+        +String role
+        +Boolean is_active
+        +DateTime date_joined
+        +register()
+        +has_role(role)
+    }
+
+    class Category {
+        +UUID id
+        +String name
+        +String slug
+        +String description
+    }
+
+    class Course {
+        +UUID id
+        +UUID instructor_id
+        +UUID category_id
+        +String title
+        +String slug
+        +String difficulty
+        +String status
+        +Int estimated_duration_minutes
+        +publish()
+        +archive()
+    }
+
+    class Module {
+        +UUID id
+        +UUID course_id
+        +String title
+        +Int position
+    }
+
+    class Lesson {
+        +UUID id
+        +UUID module_id
+        +String title
+        +Int position
+        +Boolean is_required
+        +Boolean is_preview
+        +Boolean is_published
+    }
+
+    class ContentBlock {
+        +UUID id
+        +UUID lesson_id
+        +String block_type
+        +Int position
+        +JSON content_payload
+        +UUID media_asset_id
+    }
+
+    class MediaAsset {
+        +UUID id
+        +UUID uploaded_by_id
+        +String storage_key
+        +String original_filename
+        +String mime_type
+        +Int size_bytes
+        +Int duration_seconds
+        +String transcript_url
+        +String captions_url
+    }
+
+    class Enrollment {
+        +UUID id
+        +UUID learner_id
+        +UUID course_id
+        +String status
+        +DateTime enrolled_at
+        +DateTime completed_at
+        +calculate_progress()
+    }
+
+    class LessonProgress {
+        +UUID id
+        +UUID enrollment_id
+        +UUID lesson_id
+        +String status
+        +Int completion_percent
+        +Int last_position_seconds
+        +mark_complete()
+    }
+
+    class Assessment {
+        +UUID id
+        +UUID lesson_id
+        +String title
+        +Int passing_score_percent
+        +Int time_limit_seconds
+        +Int max_attempts
+        +Boolean is_published
+    }
+
+    class Question {
+        +UUID id
+        +UUID assessment_id
+        +String question_type
+        +String prompt
+        +Int points
+        +Int position
+        +String explanation
+    }
+
+    class Choice {
+        +UUID id
+        +UUID question_id
+        +String text
+        +Int position
+        +Boolean is_correct
+    }
+
+    class QuizAttempt {
+        +UUID id
+        +UUID assessment_id
+        +UUID enrollment_id
+        +Int attempt_number
+        +String status
+        +Int score_percent
+        +Boolean passed
+        +submit_and_grade()
+    }
+
+    class Answer {
+        +UUID id
+        +UUID attempt_id
+        +UUID question_id
+        +Int awarded_points
+        +Boolean is_correct
+    }
+
+    class Skill {
+        +UUID id
+        +String name
+        +String slug
+        +String description
+    }
+
+    class LessonSkill {
+        +UUID id
+        +UUID lesson_id
+        +UUID skill_id
+        +Float contribution_weight
+    }
+
+    class StudentSkill {
+        +UUID id
+        +UUID learner_id
+        +UUID skill_id
+        +Int mastery_score
+        +update_mastery()
+    }
+
+    class LearningPath {
+        +UUID id
+        +UUID learner_id
+        +UUID course_id
+        +String status
+        +DateTime generated_at
+        +regenerate()
+    }
+
+    class LearningPathItem {
+        +UUID id
+        +UUID learning_path_id
+        +UUID lesson_id
+        +Int position
+        +String reason
+        +String status
+    }
+
+    class DiscussionThread {
+        +UUID id
+        +UUID course_id
+        +UUID lesson_id
+        +UUID author_id
+        +String title
+        +String body
+        +String status
+    }
+
+    class DiscussionPost {
+        +UUID id
+        +UUID thread_id
+        +UUID author_id
+        +UUID parent_id
+        +String body
+        +String status
+    }
+
+    %% Relationships
+    User "1" --> "*" Course : instructs
+    User "1" --> "*" Enrollment : enrolls
+    User "1" --> "*" StudentSkill : develops
+    User "1" --> "*" LearningPath : receives
+    User "1" --> "*" DiscussionPost : writes
+
+    Category "1" --> "*" Course : groups
+    Course "1" *-- "*" Module : contains
+    Module "1" *-- "*" Lesson : contains
+    Lesson "1" *-- "*" ContentBlock : contains
+    ContentBlock "0..1" --> "0..1" MediaAsset : references
+
+    Enrollment "1" *-- "*" LessonProgress : tracks
+    Lesson "1" --> "*" LessonProgress : recorded_in
+
+    Lesson "1" *-- "0..1" Assessment : assesses
+    Assessment "1" *-- "*" Question : contains
+    Question "1" *-- "*" Choice : offers
+    Enrollment "1" --> "*" QuizAttempt : attempts
+    Assessment "1" --> "*" QuizAttempt : evaluates
+    QuizAttempt "1" *-- "*" Answer : contains
+
+    Lesson "1" --> "*" LessonSkill : links
+    Skill "1" --> "*" LessonSkill : maps_to
+    Skill "1" --> "*" StudentSkill : measures
+
+    LearningPath "1" *-- "*" LearningPathItem : orders
+    Lesson "1" --> "*" LearningPathItem : targets
+
+    Course "1" --> "*" DiscussionThread : hosts
+    DiscussionThread "1" *-- "*" DiscussionPost : contains
+    DiscussionPost "0..1" --> "*" DiscussionPost : replies_to

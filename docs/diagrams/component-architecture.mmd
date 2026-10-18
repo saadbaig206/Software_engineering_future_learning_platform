@@ -1,0 +1,89 @@
+flowchart TB
+    subgraph ClientTier [Frontend Presentation Layer - Next.js App Router]
+        direction TB
+        CatalogUI["Catalog & Discovery UI\n(FR-CRS-01, FR-CRS-02)"]
+        PlayerUI["Multi-Format Course Player\n(FR-CRS-05, FR-MED-03, FR-SIM-01)"]
+        StudioUI["Content Designer Studio\n(FR-CRS-04, FR-MED-01, FR-USAB-01)"]
+        DashboardUI["Student & Analytics Dashboard\n(FR-TRK-03, FR-ANL-01)"]
+        ForumUI["Community Discussion UI\n(FR-DIS-01, FR-DIS-02)"]
+        APIClient["Typed OpenAPI Client\n(TanStack Query + Axios)"]
+        
+        CatalogUI --> APIClient
+        PlayerUI --> APIClient
+        StudioUI --> APIClient
+        DashboardUI --> APIClient
+        ForumUI --> APIClient
+    end
+
+    subgraph GatewayTier [API Gateway & Security Boundary]
+        AuthMiddleware["JWT Authentication &\nRBAC Permission Guard\n(FR-AUTH-02, FR-AUTH-03)"]
+        RateLimiter["Redis-Backed Rate Limiter\n(NFR-SEC-01)"]
+    end
+
+    subgraph ServiceTier [Django Modular Core Domain Services]
+        direction TB
+        AuthService["Auth & User Service\n(apps.users)"]
+        CourseService["Course & Content Service\n(apps.courses, apps.content)"]
+        MediaService["Media Ingestion Service\n(apps.content.media)"]
+        EnrollmentService["Enrollment Service\n(apps.enrollments)"]
+        ProgressService["Progress Tracking Engine\n(apps.progress)"]
+        AssessmentService["Assessment & Grading Engine\n(apps.assessments)"]
+        AdaptiveEngine["Adaptive Learning Engine\n(apps.learning)"]
+        DiscussionService["Forum & Moderation Service\n(apps.discussions)"]
+        AnalyticsService["Telemetry & Analytics Service\n(apps.analytics)"]
+        NotificationService["Notification Dispatcher\n(apps.notifications)"]
+
+        %% Inter-service dependencies
+        EnrollmentService --> CourseService
+        ProgressService --> EnrollmentService
+        ProgressService --> CourseService
+        AssessmentService --> ProgressService
+        AssessmentService --> AdaptiveEngine
+        AdaptiveEngine --> CourseService
+        DiscussionService --> CourseService
+        AnalyticsService --> ProgressService
+        AnalyticsService --> AssessmentService
+    end
+
+    subgraph AsyncTier [Asynchronous Task Worker Tier - Celery & Celery Beat]
+        CeleryWorker["Celery Background Worker"]
+        CeleryBeat["Celery Beat Scheduler"]
+        
+        MediaWorkerTask["Media Processing & Validation\n(FR-MED-02)"]
+        AdaptiveTask["Mastery & Path Recomputation\n(FR-PER-02, FR-PER-04)"]
+        AnalyticsTask["Periodic Metric Rollups\n(FR-ANL-01 - FR-ANL-04)"]
+        NotifyTask["Async Notification Dispatch\n(FR-NOT-01)"]
+
+        CeleryWorker --> MediaWorkerTask
+        CeleryWorker --> AdaptiveTask
+        CeleryWorker --> NotifyTask
+        CeleryBeat --> AnalyticsTask
+    end
+
+    subgraph DataTier [Storage & Persistence Tier]
+        NeonDB[("Neon Serverless PostgreSQL\n(Relational Truth, Schema & Ledgers)")]
+        RedisCache[("Redis Memory Store\n(Cache, Sessions, Rate Limits, Queues)")]
+        ObjectStore[("S3-Compatible Object Storage\n(Direct Video, Audio, Docs, Thumbs)")]
+        CDN["Global Content Delivery Network"]
+    end
+
+    %% Boundary Interactions
+    APIClient -- "HTTPS /api/v1/*" --> AuthMiddleware
+    AuthMiddleware --> RateLimiter
+    RateLimiter --> ServiceTier
+
+    StudioUI -- "Direct Presigned Upload" --> ObjectStore
+    PlayerUI -- "Stream Media" --> CDN
+    CDN --> ObjectStore
+
+    ServiceTier --> NeonDB
+    ServiceTier --> RedisCache
+    ServiceTier -- "Enqueue Async Jobs" --> RedisCache
+    RedisCache -- "Consume Queues" --> CeleryWorker
+
+    MediaWorkerTask --> ObjectStore
+    MediaWorkerTask --> NeonDB
+    AdaptiveTask --> NeonDB
+    AdaptiveTask --> RedisCache
+    AnalyticsTask --> NeonDB
+    NotifyTask --> NeonDB

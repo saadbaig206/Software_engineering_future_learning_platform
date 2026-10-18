@@ -1,0 +1,67 @@
+erDiagram
+    USER ||--o{ COURSE : instructs
+    CATEGORY o|--o{ COURSE : categorizes
+    COURSE ||--o{ MODULE : contains
+    MODULE ||--o{ LESSON : contains
+    USER ||--o{ ENROLLMENT : has
+    COURSE ||--o{ ENROLLMENT : receives
+    ENROLLMENT ||--o{ LESSON_PROGRESS : tracks
+    LESSON ||--o{ LESSON_PROGRESS : has
+    LESSON o|--o| MEDIA_ASSET : references
+    LESSON ||--o| ASSESSMENT : may_have
+    ASSESSMENT ||--o{ QUESTION : contains
+    QUESTION ||--o{ CHOICE : offers
+    ENROLLMENT ||--o{ QUIZ_ATTEMPT : makes
+    ASSESSMENT ||--o{ QUIZ_ATTEMPT : records
+    QUIZ_ATTEMPT ||--o{ ANSWER : contains
+    ANSWER ||--o{ ANSWER_CHOICE : selects
+    CHOICE ||--o{ ANSWER_CHOICE : selected_in
+    USER ||--o| LEARNING_PROFILE : has
+    USER ||--o{ STUDENT_SKILL : develops
+    SKILL ||--o{ STUDENT_SKILL : measured_as
+    LESSON ||--o{ LESSON_SKILL : contributes
+    SKILL ||--o{ LESSON_SKILL : maps_to
+    USER ||--o{ LEARNING_PATH : receives
+    LEARNING_PATH ||--o{ LEARNING_PATH_ITEM : contains
+    LESSON ||--o{ LEARNING_PATH_ITEM : recommends
+    COURSE ||--o{ DISCUSSION_THREAD : hosts
+    LESSON o|--o{ DISCUSSION_THREAD : contextualizes
+    DISCUSSION_THREAD ||--o{ DISCUSSION_POST : contains
+    USER ||--o{ DISCUSSION_POST : writes
+    DISCUSSION_POST o|--o{ DISCUSSION_POST : replies_to
+
+    USER {
+      uuid id PK
+      string email UK
+      string role
+    }
+    COURSE {
+      uuid id PK
+      uuid instructor_id FK
+      uuid category_id FK
+      string title
+      string status
+    }
+    MODULE {
+      uuid id PK
+      uuid course_id FK
+      int position
+    }
+    LESSON {
+      uuid id PK
+      uuid module_id FK
+      string content_type
+      int position
+    }
+    ENROLLMENT {
+      uuid id PK
+      uuid learner_id FK
+      uuid course_id FK
+      string status
+    }
+    LESSON_PROGRESS {
+      uuid id PK
+      uuid enrollment_id FK
+      uuid lesson_id FK
+      int completion_percent
+    }

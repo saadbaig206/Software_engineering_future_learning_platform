@@ -1,0 +1,40 @@
+sequenceDiagram
+    autonumber
+    actor Learner as Learner Client
+    participant API as Django Assessment Service
+    participant DB as Neon PostgreSQL
+    participant Adaptive as Adaptive Learning Engine
+    participant Redis as Redis Cache
+
+    Learner->>API: GET /api/v1/assessments/{id}/
+    API->>DB: Query Assessment, Questions, Choices (is_correct omitted)
+    DB-->>API: Assessment Data (Learner-Safe Payload)
+    API-->>Learner: HTTP 200 OK (Questions, Choices, Time Limit, Max Attempts)
+
+    Learner->>API: POST /api/v1/assessments/{id}/attempts/
+    API->>DB: Verify active enrollment & count past attempts < max_attempts
+    DB-->>API: Attempt Allowed
+    API->>DB: Create QuizAttempt (attempt_number=n, status=IN_PROGRESS)
+    API-->>Learner: HTTP 201 Created {attempt_id, started_at}
+
+    Learner->>API: POST /api/v1/attempts/{id}/submit/ {answers: [{question_id, choices}]}
+    API->>DB: Fetch Question Keys & Choice.is_correct (atomic lock)
+    API->>API: Calculate Score: Points Earned / Total Points = score_percent
+    API->>DB: Update QuizAttempt (status=GRADED, score_percent, passed)
+
+    API->>Adaptive: update_learner_skills(learner_id, attempt_id)
+    Adaptive->>DB: Fetch LessonSkills associated with tested questions
+    Adaptive->>Adaptive: Compute updated mastery scores (Bayesian / Exponential moving avg)
+    Adaptive->>DB: Upsert StudentSkill records
+
+    Adaptive->>Adaptive: evaluate_adaptive_branch(score_percent)
+    alt score_percent < 70% (Remedial Branch)
+        Adaptive->>DB: Insert Remedial Prerequisite Lessons into LearningPathItem
+    else score_percent >= 85% (Advanced Branch)
+        Adaptive->>DB: Insert Advanced Enrichment Lessons into LearningPathItem
+    else Standard Passing (70% - 84%)
+        Adaptive->>DB: Progress to Next Sequential Curriculum Unit
+    end
+
+    Adaptive->>Redis: Invalidate cached learning path for learner
+    API-->>Learner: HTTP 200 OK {score_percent, passed, explanations, adaptive_recommendation}

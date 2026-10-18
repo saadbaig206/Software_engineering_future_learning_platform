@@ -1,0 +1,34 @@
+sequenceDiagram
+    autonumber
+    actor Learner as Learner Browser
+    participant Gateway as Django API Gateway
+    participant SimpleJWT as SimpleJWT Auth Middleware
+    participant Redis as Redis Cache / Blacklist
+    participant DB as Neon PostgreSQL (Users)
+
+    Learner->>Gateway: POST /api/v1/auth/login/ {email, password}
+    Gateway->>DB: Query User by email (normalized lowercase)
+    DB-->>Gateway: User Record (password hash, role, is_active)
+    
+    alt Invalid Credentials or Inactive User
+        Gateway-->>Learner: HTTP 401 Unauthorized {"detail": "Invalid credentials"}
+    else Valid Credentials
+        Gateway->>SimpleJWT: Generate Token Pair (UUID, email, role)
+        SimpleJWT-->>Gateway: Access Token (15m), Refresh Token (7d)
+        Gateway->>Redis: Record Active Session Metadata
+        Gateway-->>Learner: HTTP 200 OK {access_token, refresh_token, user: {id, email, role}}
+    end
+
+    opt Token Refresh Lifecycle (Subsequent Request)
+        Learner->>Gateway: POST /api/v1/auth/refresh/ {refresh_token}
+        Gateway->>Redis: Check if refresh_token is blacklisted
+        alt Token Blacklisted
+            Redis-->>Gateway: Blacklisted
+            Gateway-->>Learner: HTTP 401 Unauthorized {"detail": "Token revoked"}
+        else Token Valid
+            Gateway->>SimpleJWT: Rotate Refresh Token
+            SimpleJWT->>Redis: Blacklist old refresh token
+            SimpleJWT-->>Gateway: New Access Token + New Refresh Token
+            Gateway-->>Learner: HTTP 200 OK {access_token, refresh_token}
+        end
+    end

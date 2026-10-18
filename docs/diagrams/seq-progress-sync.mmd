@@ -1,0 +1,28 @@
+sequenceDiagram
+    autonumber
+    actor Learner as Learner Media Player
+    participant API as Django Progress Service
+    participant DB as Neon PostgreSQL (Progress & Enrollment)
+    participant Redis as Redis Cache
+
+    Note over Learner: Video / Audio playback actively streaming
+    loop Every 10 Seconds (Debounced Client Heartbeat)
+        Learner->>API: PATCH /api/v1/lessons/{id}/progress/ {last_position_seconds: 145, completion_percent: 65}
+        API->>DB: Upsert LessonProgress (enrollment_id, lesson_id, position, percent)
+        DB-->>API: LessonProgress Record Updated
+        API-->>Learner: HTTP 200 OK {status: "IN_PROGRESS"}
+    end
+
+    Learner->>API: POST /api/v1/lessons/{id}/complete/
+    API->>DB: Fetch Lesson.is_required status
+    API->>DB: Update LessonProgress (status=COMPLETED, completion_percent=100)
+    
+    API->>DB: Count total required lessons vs completed required lessons in Course
+    alt All Required Lessons Completed
+        API->>DB: Update Enrollment (status=COMPLETED, completed_at=NOW())
+        API->>Redis: Invalidate learner course progress cache
+        API-->>Learner: HTTP 200 OK {course_status: "COMPLETED", progress_percent: 100}
+    else Incomplete Required Lessons Remaining
+        API->>DB: Update Enrollment (progress_percent = completed / total * 100)
+        API-->>Learner: HTTP 200 OK {course_status: "ACTIVE", progress_percent: 75}
+    end

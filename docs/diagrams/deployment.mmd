@@ -1,0 +1,75 @@
+flowchart TB
+    subgraph ClientEnvironment [User Edge Devices]
+        DesktopBrowser["Desktop Web Browser\n(Chrome / Safari / Firefox / Edge)"]
+        MobileBrowser["Mobile Web Browser\n(iOS / Android Responsive Viewports)"]
+    end
+
+    subgraph EdgeTier [Global Edge & Content Delivery Network]
+        CloudflareCDN["Edge CDN & TLS Termination\n(Global Caching, DDoS Protection)"]
+    end
+
+    subgraph FrontendCluster [Frontend Hosting Environment - Vercel / Node.js]
+        NextServer["Next.js Application Server (App Router)\n(SSR Pages, Static Site Generation, Client Bundles)"]
+    end
+
+    subgraph BackendCluster [Backend Application Cluster - Docker Containers]
+        NginxProxy["Nginx Reverse Proxy & Static Asset Server"]
+        
+        subgraph WebInstances [Stateless Django API Workers]
+            Django1["Django Gunicorn Worker #1\n(/api/v1/*)"]
+            Django2["Django Gunicorn Worker #2\n(/api/v1/*)"]
+        end
+
+        subgraph CeleryCluster [Asynchronous Task Worker Fleet]
+            CeleryWorker1["Celery Worker (Media & Validation)"]
+            CeleryWorker2["Celery Worker (Analytics & Adaptive)"]
+            CeleryBeat["Celery Beat Periodic Scheduler"]
+        end
+    end
+
+    subgraph CachingAndQueue [In-Memory State & Broker]
+        RedisInstance[("Redis Cache & Task Broker\n(Port 6379)")]
+    end
+
+    subgraph StorageCloud [Cloud Infrastructure & Persistent Services]
+        S3Bucket[("S3-Compatible Object Storage\n(Media Binaries, Transcripts, Thumbs)")]
+        
+        subgraph NeonCloud [Neon Serverless PostgreSQL Cloud]
+            NeonPooler[("Neon PgBouncer Connection Pooler\n(Runtime Query Port 6543)")]
+            NeonDirect[("Neon Direct PostgreSQL Node\n(Migration & Admin Port 5432)")]
+        end
+    end
+
+    %% Network Connections
+    DesktopBrowser --> CloudflareCDN
+    MobileBrowser --> CloudflareCDN
+
+    CloudflareCDN -- "HTML / JS / CSS" --> NextServer
+    CloudflareCDN -- "Media Asset Streaming" --> S3Bucket
+    CloudflareCDN -- "API Traffic (/api/v1/*)" --> NginxProxy
+
+    NextServer -- "Server-Side Fetch /api/v1/*" --> NginxProxy
+    
+    NginxProxy --> Django1
+    NginxProxy --> Django2
+
+    Django1 --> RedisInstance
+    Django2 --> RedisInstance
+
+    Django1 -- "App Queries (Pooled)" --> NeonPooler
+    Django2 -- "App Queries (Pooled)" --> NeonPooler
+    Django1 -- "Schema Migrations (Direct)" --> NeonDirect
+
+    Django1 -- "Enqueue Async Tasks" --> RedisInstance
+    Django2 -- "Enqueue Async Tasks" --> RedisInstance
+
+    RedisInstance -- "Job Queues" --> CeleryWorker1
+    RedisInstance -- "Job Queues" --> CeleryWorker2
+    CeleryBeat -- "Schedules Periodic Tasks" --> RedisInstance
+
+    CeleryWorker1 --> S3Bucket
+    CeleryWorker1 --> NeonPooler
+    CeleryWorker2 --> NeonPooler
+
+    DesktopBrowser -. "Direct Presigned Upload" .-> S3Bucket
+    MobileBrowser -. "Direct Presigned Upload" .-> S3Bucket
